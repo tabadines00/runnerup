@@ -63,15 +63,25 @@ const stdin = {
         Atomics.wait(stdinbuffer, 0, 0)
         console.log("6. WORKER: UNLOCKING...")
         const numberOfElements = stdinbuffer[0]
-        console.log("7. WORKER: RECIEVED", stdinbuffer)
+        console.log("7. WORKER: RECIEVED"/*, stdinbuffer*/)
         stdinbuffer[0] = 0
         const newStdinData = new Int32Array(numberOfElements)
+
         for (let i = 0; i < numberOfElements; i++) {
             newStdinData[i] = stdinbuffer[1 + i]
         }
+
         const responseStdin = new TextDecoder('utf-8').decode(newStdinData)
         console.log(responseStdin)
         text += responseStdin
+
+        console.log("8. WORKER: CLEANING UP, CLEARING BUFFER")
+        // reset to 0 for now
+        for (let i = 0; i < numberOfElements; i++) {
+            stdinbuffer[1 + i] = 0
+        }
+        //console.log(stdinbuffer)
+
         return text
     },
 }
@@ -113,7 +123,11 @@ const initialise = async () => {
 onmessage = function (e) {
   switch (e.data.type) {
     case 'run':
-        console.log("WORKER: Recieved run!")
+        console.log("WORKER: Recieved run! Clearing Buffer...")
+        // reset to 0 for now
+        for (let i = 0; i < stdinbuffer.length; i++) {
+          stdinbuffer[1 + i] = 0
+        }
         const code = e.data.code;
         run(code);
         break;

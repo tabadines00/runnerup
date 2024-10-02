@@ -25,8 +25,8 @@ export default function Home() {
 	}
 
 	let defaultCode = `# write code here
-color = input("color?")
-print(color)	
+color = input("what is your favorite color? ")
+print(color)
 `
 
 	return (
@@ -34,7 +34,11 @@ print(color)
 			<main>
 				<button className="p-4 bg-green-600 text-white" onClick={runner}>Run</button>
 				<div className="flex flex-row">
-					<Editor height="90vh" defaultLanguage="python" theme="vs-dark" defaultValue={defaultCode} onMount={handleEditorDidMount}/>
+					<Editor height="90vh" defaultLanguage="python" theme="vs-dark" options={{
+						minimap: {
+						enabled: false,
+						},
+      				}} defaultValue={defaultCode} onMount={handleEditorDidMount}/>
 					<PythonTerminal runCode={runCode}/>
 				</div>
 			</main>
