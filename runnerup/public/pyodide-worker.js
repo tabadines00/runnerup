@@ -1,6 +1,7 @@
-importScripts('https://cdn.jsdelivr.net/pyodide/v0.18.1/full/pyodide.js');
+importScripts('https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js')
 
-let stdinbuffer = null;
+let stdinbuffer = null
+let interruptBuffer = null
 let rerun = false
 let readlines = []
 
@@ -39,19 +40,6 @@ const stderr = {
   flush: () => {},
 };
 
-/*
-const stdin = {
-  readline: () => {
-    return new Promise((resolve) => {
-        console.log("WORKER: ran stdin ---------------------- awaiting!")
-        pendingResolve = resolve;
-        postMessage({
-            type: 'stdin',
-        });
-    });
-  },
-};
-*/
 const stdin = {
     readline: () => {
         // Send message to activate stdin mode
@@ -97,25 +85,29 @@ const run = async (code) => {
   }
   postMessage({
     type: 'finished',
-  });
+  })
 };
 
 const initialise = async () => {
 
   pyodide = await loadPyodide({
     fullStdLib: true,
-    indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.18.1/full/',
+    indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.26.2/full/'
   });
+  pyodide.setInterruptBuffer(interruptBuffer)
+
   postMessage({
     type: 'ready',
-  });
+  })
 
   pyodide.registerJsModule('fakeprint', {
     stdout: stdout,
     stderr: stderr,
     stdin: stdin,
-  });
+  })
+
   pyodide.runPython(replaceStdioCode);
+  
 };
 
 //initialise();
@@ -132,7 +124,8 @@ onmessage = function (e) {
         run(code);
         break;
     case 'init':
-        stdinbuffer = e.data.buffer;
+        stdinbuffer = e.data.buffer
+        interruptBuffer = e.data.interruptBuffer
         initialise()
         break
   }

@@ -16,6 +16,8 @@ const PythonTerminal = (props) => {
   const sharedBufferRef = useRef(null)
   const cursorPositionRef = useRef(0)
 
+  const interruptBufferRef = useRef(null)
+
   const startTimeRef = useRef(null)
   const endTimeRef = useRef(null)
 
@@ -43,6 +45,16 @@ const PythonTerminal = (props) => {
 
     return `Started: ${startHour}:${startMin}:${startSec} / Elapsed time: ${hours}:${minutes}:${seconds}.${milis%1000}`
   }
+  
+  function interruptExecution() {
+    // 2 stands for SIGINT.
+    interruptBufferRef.current[0] = 2
+    props.setIsRunning(false)
+  }
+
+  useEffect(()=>{
+    interruptExecution()
+  }, [props.isRunning])
 
   useEffect(() => {
     if (!init && typeof window !== 'undefined') {
@@ -70,15 +82,20 @@ const PythonTerminal = (props) => {
           const pythonWorker = new Worker('/pyodide-worker.js')
           setWorker(pythonWorker)
           
-
-          const sharedBuffer = new SharedArrayBuffer(128)
-          
-          
+          const sharedBuffer = new SharedArrayBuffer(128)  
           sharedBufferRef.current = new Int32Array(sharedBuffer)
-          pythonWorker.postMessage({ type: "init", buffer: sharedBufferRef.current })
+
+          interruptBufferRef.current = new Uint8Array(new SharedArrayBuffer(1))
+          interruptBufferRef.current[0] = 0
+
+          pythonWorker.postMessage({ type: "init", buffer: sharedBufferRef.current, interruptBuffer: interruptBufferRef.current })
 
           // Set up message handler for the worker
           pythonWorker.onmessage = handleWorkerMessage
+
+          props.setEnabled(true)
+
+          console.log("MAIN: Created Terminal, Set up messaging")
           
         } catch (error) {
           console.error('Error initializing terminal:', error)
@@ -114,11 +131,16 @@ const PythonTerminal = (props) => {
         case 'finished':
           terminalInstanceRef.current.write('\r\n')
           terminalInstanceRef.current.write('----  '+stopTimer()+'    ----\r\n\r\n')
+          props.setIsRunning(false)
           console.log("MAIN: Finished Executing")
           break
       }
     }
   }
+  
+  useEffect(()=>{
+    console.log("MAIN: CODE IS NOW "+ (props.isRunning ? "RUNNING" : "FINISHED"))
+  },[props.isRunning])
 
   const promptForInput = () => {
     console.log("2. MAIN: prompting for input!")
@@ -139,8 +161,6 @@ const PythonTerminal = (props) => {
       }
       console.log("4. MAIN: Handling STDIN")
       
-      //console.log(sharedBufferRef.current)
-      //setStdinbuffer(sharedBufferRef.current)
       setIsCapturingInput(false)
   }
 
@@ -148,7 +168,6 @@ const PythonTerminal = (props) => {
     if(inputBufferRef.current !== "" && sharedBufferRef.current){
       // Notify the worker that input is ready
       console.log("5. MAIN: NOTIFYING THE THREAD...")
-      //console.log(sharedBufferRef.current)
       Atomics.notify(sharedBufferRef.current, 0, 1)  
       inputBufferRef.current = ""
     }
@@ -196,6 +215,7 @@ const PythonTerminal = (props) => {
 
   const runPythonCode = (code) => {
     startTimer()
+    props.setIsRunning(true)
     worker?.postMessage({
       type: 'run',
       code: code
