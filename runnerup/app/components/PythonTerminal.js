@@ -45,16 +45,6 @@ const PythonTerminal = (props) => {
 
     return `Started: ${startHour}:${startMin}:${startSec} / Elapsed time: ${hours}:${minutes}:${seconds}.${milis%1000}`
   }
-  
-  function interruptExecution() {
-    // 2 stands for SIGINT.
-    interruptBufferRef.current[0] = 2
-    props.setIsRunning(false)
-  }
-
-  useEffect(()=>{
-    interruptExecution()
-  }, [props.isRunning])
 
   useEffect(() => {
     if (!init && typeof window !== 'undefined') {
@@ -137,6 +127,17 @@ const PythonTerminal = (props) => {
       }
     }
   }
+
+  function interruptExecution() {
+    // 2 stands for SIGINT.
+    interruptBufferRef?.current[0] = 2
+    props.setIsRunning(false)
+  }
+
+  // useEffect(()=>{
+  //   if(pr)
+  //   interruptExecution()
+  // }, [props.isRunning])
   
   useEffect(()=>{
     console.log("MAIN: CODE IS NOW "+ (props.isRunning ? "RUNNING" : "FINISHED"))
