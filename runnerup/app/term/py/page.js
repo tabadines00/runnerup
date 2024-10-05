@@ -20,7 +20,7 @@ export default function Home() {
 	}
 
 	function runner() {
-		if(isRunning) {
+		if(!isRunning) {
 			setRunCode({
 				trigger: !runCode.trigger,
 				code: getValue()

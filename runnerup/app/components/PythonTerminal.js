@@ -120,7 +120,7 @@ const PythonTerminal = (props) => {
           break
         case 'finished':
           terminalInstanceRef.current.write('\r\n')
-          terminalInstanceRef.current.write('----  '+stopTimer()+'    ----\r\n\r\n')
+          terminalInstanceRef.current.write('-----    '+stopTimer()+'    -----\r\n\r\n')
           props.setIsRunning(false)
           console.log("MAIN: Finished Executing")
           break
@@ -128,11 +128,11 @@ const PythonTerminal = (props) => {
     }
   }
 
-  function interruptExecution() {
-    // 2 stands for SIGINT.
-    interruptBufferRef?.current[0] = 2
-    props.setIsRunning(false)
-  }
+  // function interruptExecution() {
+  //   // 2 stands for SIGINT.
+  //   interruptBufferRef?.current[0] = 2
+  //   props.setIsRunning(false)
+  // }
 
   // useEffect(()=>{
   //   if(pr)
