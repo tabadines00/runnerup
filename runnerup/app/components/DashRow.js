@@ -8,7 +8,7 @@ const Page = ({data}) => {
     return (
         <TableRow>
             <TableCell className="font-medium">
-                <Link href={"/term/py"}>
+                <Link href={`/term/py/${data.project_slug}`}>
                     {data.title}
                 </Link>
             </TableCell>

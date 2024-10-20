@@ -7,6 +7,14 @@ export const GetProject = async (c: any) => {
 
 	console.log(results[0])
 
+	if(!results[0]) {
+		c.status(400)
+		return await c.json({
+			success: false,
+			response: null,
+		})
+	}
+
 	return await c.json({
 		success: true,
 		response: await results[0],

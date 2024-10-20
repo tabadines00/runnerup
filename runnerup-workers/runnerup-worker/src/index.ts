@@ -21,7 +21,12 @@ type Bindings = {
 };
 
 const api = new Hono<{ Bindings: Bindings }>();
-api.use("*", cors())
+api.use("*", cors({
+    origin: ['http://localhost:3000', 'http://localhost:8787'],
+	//allowHeaders: ['Content-Type'],
+	allowMethods: ['GET','POST','PUT','DELETE'],
+    credentials: true
+}))
 
 // Accessing D1 is via the c.env.YOUR_BINDING property
 // api.get("/query/users/:id", async (c) => {
@@ -43,7 +48,7 @@ api.get("/project/:projectSlug", GetProject);
 // api.post("/project/:projectSlug/join", JoinProject);
 
 // User Specific Actions (to be authenticated)
-//api.use("/q/*", auth)
+api.use("/q/*", auth)
 
 // Get project and user's projects
 api.get("/q/:user/projects", GetAllUserProjects);
@@ -55,7 +60,7 @@ api.get("/q/:user/:projectSlug", GetUserProject);
 
 // Auth
 api.post("/register", CreateUser)
-api.post("/login", login, (c) => { return c.json( { message:"You Logged in as " + c.req.parseBody().then((body)=>body.username) + "!"}) } )
+api.post("/login", LoginUser /*, (c) => { return c.json( { message:"You Logged in!"}) }*/ )
 api.get("/logout", logout, (c) => { return c.json( { message:"You Logged out!"}) } )
 
 // Export the Hono app

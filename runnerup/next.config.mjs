@@ -3,13 +3,12 @@ const nextConfig = {
     async headers() {
         return [
             {
-                // matching all API routes
-                source: "/:path*",
+                source: "/((?!q/).*)",  // Regex pattern to exclude /q/ routes
                 headers: [
-                    { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
-                    { key: "Cross-Origin-Embedder-Policy", value: "require-corp" }
-                ],
-            }
+                  { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+                  { key: "Cross-Origin-Embedder-Policy", value: "require-corp" }
+                ]
+            },
         ]
     },
     webpack: (config, { isServer }) => {
