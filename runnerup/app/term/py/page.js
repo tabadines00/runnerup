@@ -1,5 +1,5 @@
 "use client"
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import PythonTerminal from "../../components/PythonTerminal"
 import { Editor } from "@monaco-editor/react"
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from "react-resizable-panels"
@@ -30,6 +30,22 @@ export default function Home() {
 			setIsRunning(false) // This drives the stop.
 		}
 	}
+
+	
+	
+	useEffect(() => {
+		const handleKeyDown = (e) => {
+			if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+				e.preventDefault();
+				runner();
+			}
+		};
+		// Set useCapture to true so we intercept the keydown before Monaco editor stops propagation
+		document.addEventListener('keydown', handleKeyDown, true);
+		return () => {
+			document.removeEventListener('keydown', handleKeyDown, true);
+		};
+	}, [isRunning, runCode]);
 
 	let defaultCode = `# write code here
 while (True):
