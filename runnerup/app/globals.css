@@ -88,7 +88,30 @@ body {
   * {
     @apply border-border;
   }
-  body {
+  html, body {
     @apply bg-background text-foreground;
+    overscroll-behavior: none; /* Prevents rubber-banding bounce effect */
+    overflow: hidden; /* Prevents whole-page scrolling */
+  }
+
+  /* Consistent, Simple Scrollbars matching VS-Dark */
+  ::-webkit-scrollbar {
+    width: 14px;
+    height: 14px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(121, 121, 121, 0.4);
+    border-radius: 0px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(121, 121, 121, 0.6);
+  }
+  /* Firefox */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(121, 121, 121, 0.4) transparent;
   }
 }

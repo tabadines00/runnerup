@@ -31,19 +31,19 @@ const PythonTerminal = (props) => {
     endTimeRef.current = new Date()
 
     // Calculate elapsed time in milliseconds
-    let elapsedTime = endTimeRef.current.getTime() - startTimeRef.current.getTime() 
+    let elapsedTime = endTimeRef.current.getTime() - startTimeRef.current.getTime()
 
     let startHour = startTimeRef.current.getHours() % 12
     let startMin = startTimeRef.current.getMinutes().toString().padStart(2, '0')
     let startSec = startTimeRef.current.getSeconds().toString().padStart(2, '0')
 
-    let milis = Math.floor(elapsedTime) 
-    let seconds = Math.floor(milis / 1000) 
+    let milis = Math.floor(elapsedTime)
+    let seconds = Math.floor(milis / 1000)
     let minutes = Math.floor(seconds / 60).toString().padStart(2, '0')
     let hours = Math.floor(seconds / 3600).toString().padStart(2, '0')
     seconds = (seconds % 60).toString().padStart(2, '0')
 
-    return `Started: ${startHour}:${startMin}:${startSec} / Elapsed time: ${hours}:${minutes}:${seconds}.${milis%1000}`
+    return `Started: ${startHour}:${startMin}:${startSec} / Elapsed time: ${hours}:${minutes}:${seconds}.${milis % 1000}`
   }
 
   useEffect(() => {
@@ -54,7 +54,7 @@ const PythonTerminal = (props) => {
           // Dynamically import CSS
           await import('@xterm/xterm/css/xterm.css')
           const fitAddon = new FitAddon()
-          
+
           let term = new Terminal({
             cursorBlink: true,
             fontSize: 14,
@@ -62,17 +62,23 @@ const PythonTerminal = (props) => {
           })
           console.log("Created a terminal!")
           term.loadAddon(fitAddon)
-          
+
           term.open(terminalRef.current)
           fitAddon.fit()
 
+          const resizeObserver = new ResizeObserver(() => {
+            fitAddon.fit()
+          })
+          resizeObserver.observe(terminalRef.current)
+
           terminalInstanceRef.current = term
+          terminalInstanceRef.current._resizeObserver = resizeObserver
 
           // Initialize Web Worker
           const pythonWorker = new Worker('/pyodide-worker.js')
           setWorker(pythonWorker)
-          
-          const sharedBuffer = new SharedArrayBuffer(128)  
+
+          const sharedBuffer = new SharedArrayBuffer(8192)
           sharedBufferRef.current = new Int32Array(sharedBuffer)
 
           interruptBufferRef.current = new Uint8Array(new SharedArrayBuffer(1))
@@ -86,17 +92,20 @@ const PythonTerminal = (props) => {
           props.setEnabled(true)
 
           console.log("MAIN: Created Terminal, Set up messaging")
-          
+
         } catch (error) {
           console.error('Error initializing terminal:', error)
         }
       }
 
       initTerminal()
-      
+
       // Clean up function
       return () => {
         if (terminalInstanceRef.current) {
+          if (terminalInstanceRef.current._resizeObserver) {
+            terminalInstanceRef.current._resizeObserver.disconnect()
+          }
           terminalInstanceRef.current.dispose()
         }
         if (worker) {
@@ -120,7 +129,7 @@ const PythonTerminal = (props) => {
           break
         case 'finished':
           terminalInstanceRef.current.write('\r\n')
-          terminalInstanceRef.current.write('-----    '+stopTimer()+'    -----\r\n\r\n')
+          terminalInstanceRef.current.write('\r\n-----    ' + stopTimer() + '    -----\r\n\r\n')
           props.setIsRunning(false)
           console.log("MAIN: Finished Executing")
           break
@@ -128,20 +137,28 @@ const PythonTerminal = (props) => {
     }
   }
 
-  // function interruptExecution() {
-  //   // 2 stands for SIGINT.
-  //   interruptBufferRef?.current[0] = 2
-  //   props.setIsRunning(false)
-  // }
+  const interruptExecution = () => {
+    // 2 stands for SIGINT.
+    if (interruptBufferRef.current) {
+      interruptBufferRef.current[0] = 2
+    }
+    // Wake up Atomics.wait if it's currently blocking on user input
+    if (isCapturingInput && sharedBufferRef.current) {
+      sharedBufferRef.current[0] = 1
+      const textBytes = new Uint8Array(sharedBufferRef.current.buffer, 4)
+      textBytes.set([10]) // Provide a dummy newline character '\n' to trigger evaluation
+      Atomics.notify(sharedBufferRef.current, 0, 1)
+      setIsCapturingInput(false)
+      inputBufferRef.current = ""
+    }
+  }
 
-  // useEffect(()=>{
-  //   if(pr)
-  //   interruptExecution()
-  // }, [props.isRunning])
-  
-  useEffect(()=>{
-    console.log("MAIN: CODE IS NOW "+ (props.isRunning ? "RUNNING" : "FINISHED"))
-  },[props.isRunning])
+  useEffect(() => {
+    if (!props.isRunning) {
+      interruptExecution()
+    }
+    console.log("MAIN: CODE IS NOW " + (props.isRunning ? "RUNNING" : "FINISHED"))
+  }, [props.isRunning, isCapturingInput])
 
   const promptForInput = () => {
     console.log("2. MAIN: prompting for input!")
@@ -152,27 +169,22 @@ const PythonTerminal = (props) => {
   }
 
   const handleSendSTDIN = () => {
-      let encodedInput = new TextEncoder("utf-8").encode(inputBufferRef.current)
-      // Write the length of the input text at index 0
-      sharedBufferRef.current[0] = encodedInput.length
-  
-      // Write the input text to the shared buffer starting at index 1
-      for (let i = 0; i < encodedInput.length; i++) {
-        sharedBufferRef.current[1 + i] = encodedInput[i]
-      }
-      console.log("4. MAIN: Handling STDIN")
-      
-      setIsCapturingInput(false)
-  }
+    // Append a newline because sys.stdin.readline() expects it to signify line finish
+    let encodedInput = new TextEncoder("utf-8").encode(inputBufferRef.current + "\n")
+    // Write the length of the input byte-array at index 0 of the int32 view
+    sharedBufferRef.current[0] = encodedInput.length
 
-  useEffect(()=>{
-    if(inputBufferRef.current !== "" && sharedBufferRef.current){
-      // Notify the worker that input is ready
-      console.log("5. MAIN: NOTIFYING THE THREAD...")
-      Atomics.notify(sharedBufferRef.current, 0, 1)  
-      inputBufferRef.current = ""
-    }
-  },[isCapturingInput])
+    // Write the input byte text to the shared buffer starting at byte offset 4
+    const textBytes = new Uint8Array(sharedBufferRef.current.buffer, 4)
+    textBytes.set(encodedInput)
+
+    console.log("4. MAIN: Handling STDIN")
+    console.log("5. MAIN: NOTIFYING THE THREAD...")
+
+    Atomics.notify(sharedBufferRef.current, 0, 1)
+    setIsCapturingInput(false)
+    inputBufferRef.current = ""
+  }
 
   const handleUserInput = (key) => {
     let char = key.charCodeAt(0)
@@ -180,17 +192,17 @@ const PythonTerminal = (props) => {
     if (isCapturingInput == true) {
       if (key === '\r') {
         // handle Enter key
-        console.log("3. MAIN: SENDING INPUT" , inputBufferRef.current)
+        console.log("3. MAIN: SENDING INPUT", inputBufferRef.current)
         handleSendSTDIN()
         terminalInstanceRef.current?.write('\r\n')
         cursorPositionRef.current = 0
-        
+
       } else if (char === 127) {
         // handle Backspace
         if (inputBufferRef.current.length > 0 && cursorPositionRef.current > 0) {
-            inputBufferRef.current = inputBufferRef.current.slice(0, cursorPositionRef.current - 1) //+ inputBufferRef.current.slice(cursorPositionRef.current)
-            terminalInstanceRef.current?.write('\b \b')  // Erase character from terminal
-            cursorPositionRef.current -= 1
+          inputBufferRef.current = inputBufferRef.current.slice(0, cursorPositionRef.current - 1) //+ inputBufferRef.current.slice(cursorPositionRef.current)
+          terminalInstanceRef.current?.write('\b \b')  // Erase character from terminal
+          cursorPositionRef.current -= 1
         }
       } else {
         inputBufferRef.current += key
@@ -201,7 +213,7 @@ const PythonTerminal = (props) => {
     } else {
       console.log("MAIN: no change to buffer")
     }
-    
+
   }
 
   useEffect(() => {
@@ -216,6 +228,9 @@ const PythonTerminal = (props) => {
 
   const runPythonCode = (code) => {
     startTimer()
+    if (interruptBufferRef.current) {
+      interruptBufferRef.current[0] = 0 // Clear the interrupt flag before running
+    }
     props.setIsRunning(true)
     worker?.postMessage({
       type: 'run',
@@ -224,13 +239,13 @@ const PythonTerminal = (props) => {
   }
 
   useEffect(() => {
-    if(props.runCode.code != "") {
+    if (props.runCode.code != "") {
       runPythonCode(props.runCode.code)
     }
   }, [props.runCode])
 
   return (
-      <div ref={terminalRef} />
+    <div className="w-full h-full overflow-hidden relative" ref={terminalRef} />
   )
 }
 

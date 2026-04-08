@@ -1,3 +1,5 @@
+
+
 import { React } from 'react'
 import Dashboard from '@/app/components/Dashboard'
 import { cookies } from 'next/headers'
@@ -22,7 +24,7 @@ async function Page({params: {slug}}) {
 		console.log(projects.response)
 		return (
 			<div className='p-4'>
-				<p className='text-xl'>{projects.response[0].username}'s Projects</p>
+				<p className='text-xl'>{projects.response[0].username}&apos;s Projects</p>
 				<Dashboard dashboardProjects={projects.response}/>
 			</div>
 		)

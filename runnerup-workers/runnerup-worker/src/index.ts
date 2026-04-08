@@ -22,7 +22,7 @@ type Bindings = {
 
 const api = new Hono<{ Bindings: Bindings }>();
 api.use("*", cors({
-    origin: ['http://localhost:3000', 'http://localhost:8787'],
+    origin: ['http://localhost:3000', 'http://localhost:8771', 'http://localhost:8787'],
 	//allowHeaders: ['Content-Type'],
 	allowMethods: ['GET','POST','PUT','DELETE'],
     credentials: true

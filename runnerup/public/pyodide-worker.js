@@ -14,8 +14,16 @@ import sys
 import fakeprint
 
 sys.stdout = fakeprint.stdout
-sys.stderr = fakeprint.stdout
+sys.stderr = fakeprint.stderr
 sys.stdin = fakeprint.stdin
+
+def custom_excepthook(exc_type, exc_value, exc_traceback):
+    if issubclass(exc_type, KeyboardInterrupt):
+        pass
+    else:
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+
+sys.excepthook = custom_excepthook
 `;
 
 const stdout = {
@@ -34,7 +42,7 @@ const stderr = {
     console.log("WORKER: ran stderr")
     postMessage({
       type: 'stderr',
-      stdout: s,
+      stderr: s,
     });
   },
   flush: () => {},
@@ -51,24 +59,24 @@ const stdin = {
         Atomics.wait(stdinbuffer, 0, 0)
         console.log("6. WORKER: UNLOCKING...")
         const numberOfElements = stdinbuffer[0]
-        console.log("7. WORKER: RECIEVED"/*, stdinbuffer*/)
-        stdinbuffer[0] = 0
-        const newStdinData = new Int32Array(numberOfElements)
-
-        for (let i = 0; i < numberOfElements; i++) {
-            newStdinData[i] = stdinbuffer[1 + i]
-        }
-
-        const responseStdin = new TextDecoder('utf-8').decode(newStdinData)
+        console.log("7. WORKER: RECIEVED", numberOfElements, "bytes")
+        
+        // Read text starting from byte offset 4 of the underlying SharedArrayBuffer
+        const textBytes = new Uint8Array(stdinbuffer.buffer, 4, numberOfElements)
+        
+        // TextDecoder cannot decode directly from a SharedArrayBuffer for security/racing reasons
+        // So we copy the bytes into a normal (local) Uint8Array first
+        const localBytes = new Uint8Array(textBytes)
+        
+        const responseStdin = new TextDecoder('utf-8').decode(localBytes)
         console.log(responseStdin)
         text += responseStdin
 
         console.log("8. WORKER: CLEANING UP, CLEARING BUFFER")
-        // reset to 0 for now
-        for (let i = 0; i < numberOfElements; i++) {
-            stdinbuffer[1 + i] = 0
-        }
-        //console.log(stdinbuffer)
+        // reset lock
+        stdinbuffer[0] = 0
+        // clear the text bytes to prevent leaking over reads
+        textBytes.fill(0)
 
         return text
     },
@@ -78,10 +86,14 @@ const run = async (code) => {
   try {
     await pyodide.runPythonAsync(code);
   } catch (err) {
-    postMessage({
-      type: 'stderr',
-      stderr: err.toString(),
-    });
+    if ((interruptBuffer && interruptBuffer[0] === 2) || err.toString().includes("KeyboardInterrupt")) {
+        // Ignore the JS-side exception since we gracefully stopped it
+    } else {
+        postMessage({
+        type: 'stderr',
+        stderr: err.toString(),
+        });
+    }
   }
   postMessage({
     type: 'finished',
@@ -117,9 +129,7 @@ onmessage = function (e) {
     case 'run':
         console.log("WORKER: Recieved run! Clearing Buffer...")
         // reset to 0 for now
-        for (let i = 0; i < stdinbuffer.length; i++) {
-          stdinbuffer[1 + i] = 0
-        }
+        stdinbuffer[0] = 0;
         const code = e.data.code;
         run(code);
         break;
